@@ -1,0 +1,42 @@
+name: actions file for backend code
+on:
+  push:
+    branches:
+      - "master"
+jobs: 
+  initializing-and-testing-code:
+    runs-on: ubuntu-latest
+    steps:
+      - name: checking-out-repo
+        uses: actions/checkout@v2
+          
+      - run: echo "hii"
+
+  deploy-to-ec2:
+    needs: initializing-and-testing-code
+    runs-on: ubuntu-latest
+    steps:
+      - name: deploying code to ec2
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{secrets.INSTANCE_SSH_HOST}}
+          username: ${{secrets.INSTANCE_SSH_USERNAME}}
+          key: ${{secrets.INSTANCE_SSH_KEY}}
+          port: ${{secrets.INSTANCE_SSH_PORT}}
+          script: |
+              cd /var/www/
+              sudo git clone https://github.com/amit-antino/console-web.git
+              cd console-web
+              sudo cp .env.example .env
+              sudo sed -i "s|DB_DATABASE=simreka_dev|DB_DATABASE=${{secrets.DB_DATABASE}}|g"  /var/www/console-web/.env
+              sudo sed -i "s|DB_USERNAME=|DB_USERNAME=${{secrets.DB_USERNAME}}|g"  /var/www/console-web/.env
+              sudo sed -i "s|DB_PASSWORD=|DB_PASSWORD=${{secrets.DB_PASSWORD}}|g"  /var/www/console-web/.env
+              php artisan key:generate
+              chgrp -R www-data /var/www/console-web
+              chown -R www-data:www-data /var/www/console-web
+              chmod -R 775 /var/www/console-web/storage
+              chown -R www-data.www-data /var/www/console-web/storage
+              yes | composer install
+              yes | composer dump-autoload
+              yes | php artisan migrate:fresh
+              yes | php artisan serve
